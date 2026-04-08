@@ -12,7 +12,6 @@ void (*exception_handler[MAX_INTERRUPTS])();
 
 volatile int intr_count = 0;
 
-
 void timer_handler() {
     intr_count++;
     set_cycles(get_cycles()+ 3277);       // 3277 cycles in 100 ms
@@ -99,7 +98,7 @@ int main() {
     ser_setup(1); // uart1
     int pi_to_hifive = 1; //The connection with Pi uses uart 1
     int lidar_to_hifive = 0; //the lidar uses uart 0
-    /*
+
     // Interrupt setup
     interrupt_handler[MIE_MTIE_BIT] = timer_handler;        // install timer interrupt handler
     register_trap_handler(handle_trap());         // write handle_trap address to mtvec
@@ -108,7 +107,6 @@ int main() {
     set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
 
     int prev_intr_count = intr_count;           // Previous LED interrupt count
-    */
     int val = 0;        // On/Off value for braking LED
 
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
@@ -124,8 +122,8 @@ int main() {
     printf("Begin the main loop.\n");
 
     while (1) {
-        //disable_interrupt();
-        /*
+        disable_interrupt();
+        
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
         
         if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
@@ -134,17 +132,17 @@ int main() {
                 gpio_write(RED_LED, val);       // Turns Red LED ON or OFF
                 delay(ONE_HUND);
             }
-            //prev_intr_count = intr_count;       // Save off the interrupt count
+            prev_intr_count = intr_count;       // Save off the interrupt count
         }
-        */
         
-
+        
+        /*
         printf("Beginning to read angle");
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
         printf("\nangle=%d", angle);
         printf("Done reading angle");
 
-        /*
+
         int gpio = PIN_19; 
         for (int i = 0; i < 10; i++){
             // Here, we set the angle to 180 if the prediction from the DNN is a positive angle
@@ -165,7 +163,7 @@ int main() {
             // steering(gpio, angle);
         }
         */
-        //enable_interrupt();
+        enable_interrupt();
     }
     return 0;
 }
