@@ -13,11 +13,8 @@ void (*exception_handler[MAX_INTERRUPTS])();
 volatile int intr_count = 0;
 
 void timer_handler() {
-    intr_count++;
-    set_cycles(get_cycles()+ 3277);       // 3277 cycles in 100 ms
-    /* Task 2.3 Increment the interrupt counter variable*/
-    /* Task 2.3 Set the mtimecmpr register to a correct value to 
-       generate an interrupt after 100ms */
+    intr_count++;       // Increment the interrupt counter variable
+    set_cycles(get_cycles() + 3277);       // Set the mtimecmpr register to correct value to generate an interrupt after 100ms (3277 cycles in 100 ms)
 }
 
 int auto_brake(int devid) {
@@ -45,26 +42,18 @@ int auto_brake(int devid) {
             dist = (dist_H << 8) | dist_L;      // Calculates the distance
 
             if (dist > 200) {       // Safe distance, the Green LED turns on
-                gpio_write(RED_LED, 0);       // Red LED OFF
-                gpio_write(GREEN_LED, 1);       // Green LED ON
                 led_state = 1;
             }
 
             else if (200 >= dist && dist > 100) {      // Close distance, the Yellow LED turns on (Red and Green LEDs)
-                gpio_write(RED_LED, 1);        // Red LED ON
-                gpio_write(GREEN_LED, 1);        // Green LED ON
                 led_state = 2;
             }
 
             else if (100 >= dist && dist > 60) {        // Very close distance, the Red LED turns on
-                gpio_write(GREEN_LED, 0);        // Green LED OFF
-                gpio_write(RED_LED, 1);        // Red LED ON
                 led_state = 3;
             }
 
             else if (60 >= dist) {      // Too close, the Red LED flashes
-                gpio_write(GREEN_LED, 0);        // Green LED OFF
-                gpio_write(RED_LED, 0);      // Red LED ON
                 led_state = 4;
             }
             // Display distance
@@ -101,7 +90,7 @@ int main() {
 
     // Interrupt setup
     interrupt_handler[MIE_MTIE_BIT] = timer_handler;        // install timer interrupt handler
-    register_trap_handler(handle_trap());         // write handle_trap address to mtvec
+    register_trap_handler(handle_trap);         // write handle_trap address to mtvec
     enable_timer_interrupt();         // enable timer interrupt
     enable_interrupt();         // enable global interrupt
     set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
@@ -126,15 +115,30 @@ int main() {
         
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
         
-        if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
-            if (led_state == 4) {       // Checks for flashing red state
+        if (led_state == 1) {       // Safe distance, the Green LED turns on
+            gpio_write(RED_LED, 0);       // Red LED OFF
+            gpio_write(GREEN_LED, 1);       // Green LED ON
+        }
+
+        else if (led_state == 2) {      // Close distance, the Yellow LED turns on (Red and Green LEDs)
+            gpio_write(RED_LED, 1);        // Red LED ON
+            gpio_write(GREEN_LED, 1);        // Green LED ON
+        }
+
+        else if (led_state == 3) {        // Very close distance, the Red LED turns on
+            gpio_write(GREEN_LED, 0);        // Green LED OFF
+            gpio_write(RED_LED, 1);        // Red LED ON
+        }
+
+        else if (led_state == 4) {
+            gpio_write(GREEN_LED, 0);        // Green LED OFF
+            
+            if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
                 val ^= 1;       // Toggle for LED ON/OFF
                 gpio_write(RED_LED, val);       // Turns Red LED ON or OFF
-                delay(ONE_HUND);
+                prev_intr_count = intr_count;       // Save off the interrupt count
             }
-            prev_intr_count = intr_count;       // Save off the interrupt count
         }
-        
         
         /*
         printf("Beginning to read angle");
@@ -163,7 +167,7 @@ int main() {
             // steering(gpio, angle);
         }
         */
-        enable_interrupt();
+       enable_interrupt();
     }
     return 0;
 }

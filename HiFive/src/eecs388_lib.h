@@ -83,7 +83,8 @@ uint64_t get_cycles(void);
 void delay(int msec);
 void delay_usec(int usec);
 
-
+void handle_trap(void) __attribute((interrupt));
+void handle_trap();
 void enable_timer_interrupt();
 void enable_external_interrupt();
 void enable_interrupt();
