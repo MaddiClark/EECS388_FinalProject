@@ -8,6 +8,7 @@ import time
 import math
 import numpy as np
 import collections
+import serial
 
 # Set environment variables for TensorFlow threading
 def set_tf_config(ncpu):
@@ -157,3 +158,5 @@ print("99.999pct: {}".format(np.percentile(tot_time_list, 99.999)))
 print("99.99pct: {}".format(np.percentile(tot_time_list, 99.99)))
 print("99.9pct: {}".format(np.percentile(tot_time_list, 99.9)))
 print("99pct: {}".format(np.percentile(tot_time_list, 99)))
+
+ser = serial.Serial("ttyAMA2", 115200)
