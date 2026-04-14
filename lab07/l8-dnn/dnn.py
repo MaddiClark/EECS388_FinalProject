@@ -132,7 +132,9 @@ while curFrame < NFRAMES:
         # Total time includes capture, preprocessing, and a portion of prediction
         tot_time = cam_time + prep_time + pred_time
         
-        print(f'deg: {deg}')
+        ser = serial.Serial("/dev/ttyAMA2", 115200)
+        ser.write(bytes(f"{deg}\n", 'utf-8'))
+
         print(f'pred: {deg:0.2f} deg. took: {tot_time:0.2f} ms | cam={cam_time:0.2f} prep={prep_time:0.2f} pred={pred_time:0.2f}')
         
         # Add timings to lists
@@ -162,5 +164,4 @@ print("99.9pct: {}".format(np.percentile(tot_time_list, 99.9)))
 print("99pct: {}".format(np.percentile(tot_time_list, 99)))
 """
 
-ser = serial.Serial("/dev/ttyAMA2", 115200)
-ser.write(bytes(f"{deg}\n", 'utf-8'))
+

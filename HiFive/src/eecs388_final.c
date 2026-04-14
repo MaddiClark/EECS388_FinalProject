@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "eecs388_lib.h"
 
@@ -61,7 +62,7 @@ int auto_brake(int devid) {
                 led_state = 4;
             }
             // Display distance
-            printf("Distance: %d cm\n", dist);
+            // printf("Distance: %d cm\n", dist);
 
             return led_state;
         }
@@ -76,9 +77,11 @@ int read_from_pi(int devid) {
     char string_array[BUF_SIZE];
 
     if (ser_isready(devid)) {
+
         int bytes_read = ser_readline(devid, BUF_SIZE, string_array);
         if (bytes_read > 0) {
-            int angle = atoi(string_array);     // ASCII to Int
+            int angle;
+            sscanf(string_array, "%d", &angle);     // ASCII to Int
             return angle;
         }
     }
@@ -90,14 +93,41 @@ void steering(int gpio, int pos) {
     // Task-4: 
     // Your code goes here (Use Lab 05 for reference)
     // Check the project document to understand the task
+    
     uint16_t pulse_width = 544 + ((1856 * pos) / 180);       // Calculates the pulse width
     gpio_write(gpio, ON);
-    delay_us(pulse_width);     // Duty cycle
+    delay_usec(pulse_width);     // Duty cycle
     
     gpio_write(gpio, OFF);
     uint16_t remainder_pwm = (SERVO_PERIOD - pulse_width);      // Remainder of PWM period
-    delay_ms(16);
-    delay_us(remainder_pwm - 16000);
+    delay(16);
+    delay_usec(remainder_pwm - 16000);
+    /*
+    static uint32_t last_time = 0;
+    static int pwm_state = 0;
+
+    uint16_t pulse_width = 544 + ((1856 * pos) / 180);
+    uint16_t remainder_pwm = (SERVO_PERIOD - pulse_width);
+
+    uint32_t current_time = get_cycles();
+
+    if (pwm_state == 0) {
+        gpio_write(gpio, ON);
+        last_time = current_time;
+        pwm_state = 1;
+    }
+    else if (pwm_state == 1) {
+        if (current_time - last_time >= pulse_width) {
+            gpio_write(gpio, OFF);
+            last_time = current_time;
+            pwm_state = 2;
+        }
+    }
+    else if (pwm_state == 2) {
+        if (current_time - last_time >= remainder_pwm) {
+            pwm_state = 0;
+        }
+    }*/
 }
 
 
@@ -107,7 +137,7 @@ int main() {
     ser_setup(1); // uart1
     int pi_to_hifive = 1; //The connection with Pi uses uart 1
     int lidar_to_hifive = 0; //the lidar uses uart 0
-
+    
     // Interrupt setup
     interrupt_handler[MIE_MTIE_BIT] = timer_handler;        // install timer interrupt handler
     register_trap_handler(handle_trap);         // write handle_trap address to mtvec
@@ -116,7 +146,7 @@ int main() {
     set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
     int prev_intr_count = intr_count;           // Previous interrupt count
     int val = 0;        // On/Off value for braking LED
-
+    
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
     printf("\nUsing UART %d for Lidar -> HiFive", lidar_to_hifive);
     
@@ -129,9 +159,10 @@ int main() {
     printf("Setup completed.\n");
     printf("Begin the main loop.\n");
 
+
     while (1) {
+        
         disable_interrupt();
-        uint32_t currentTime = millis();
         
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
         
@@ -151,19 +182,22 @@ int main() {
         }
 
         else if (led_state == 4) {
-            gpio_write(GREEN_LED, 0);        // Green LED OFF
+            gpio_write(GREEN_LED, 0);         // Green LED OFF
             
             if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
                 val ^= 1;       // Toggle for LED ON/OFF
                 gpio_write(RED_LED, val);       // Turns Red LED ON or OFF
                 prev_intr_count = intr_count;       // Save off the interrupt count
             }
+
         }
         
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
-        printf("\nangle=%d", angle);
-
-        /*
+        if (angle != 0) {
+            printf("\nangle=%d", angle);
+        }
+               
+        
         int gpio = PIN_19; 
         for (int i = 0; i < 10; i++){
             // Here, we set the angle to 180 if the prediction from the DNN is a positive angle
@@ -183,9 +217,8 @@ int main() {
             // Remember to comment out the if-else statement above!
             // steering(gpio, angle);
         }
-        */
+        enable_interrupt();
 
-       enable_interrupt();
     }
     return 0;
 }

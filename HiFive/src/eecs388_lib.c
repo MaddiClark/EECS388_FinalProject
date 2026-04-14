@@ -185,7 +185,7 @@ int ser_readline(int devid, int n, char *str)
     }
 #endif
     str[i] = ser_read(devid);
-    ser_write(0, str[i]);
+    //ser_write(0, str[i]);
     if (str[i] == '\r' || str[i] == '\n') {
       str[i] = 0;
       return i;      
