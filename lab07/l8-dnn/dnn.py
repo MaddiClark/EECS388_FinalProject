@@ -132,6 +132,7 @@ while curFrame < NFRAMES:
         # Total time includes capture, preprocessing, and a portion of prediction
         tot_time = cam_time + prep_time + pred_time
         
+        print(f'deg: {deg}')
         print(f'pred: {deg:0.2f} deg. took: {tot_time:0.2f} ms | cam={cam_time:0.2f} prep={prep_time:0.2f} pred={pred_time:0.2f}')
         
         # Add timings to lists
@@ -151,6 +152,7 @@ cap.release()
 fps = curFrame / (time.time() - time_start)
 print('completed inference, total frames: {}, average fps: {} Hz'.format(curFrame, round(fps, 1)))
 
+"""
 # Calculate and display statistics of the total inferencing times
 print("count: {}".format(len(tot_time_list)))
 print("mean: {}".format(np.mean(tot_time_list)))
@@ -158,5 +160,7 @@ print("99.999pct: {}".format(np.percentile(tot_time_list, 99.999)))
 print("99.99pct: {}".format(np.percentile(tot_time_list, 99.99)))
 print("99.9pct: {}".format(np.percentile(tot_time_list, 99.9)))
 print("99pct: {}".format(np.percentile(tot_time_list, 99)))
+"""
 
-ser = serial.Serial("ttyAMA2", 115200)
+ser = serial.Serial("/dev/ttyAMA2", 115200)
+ser.write(bytes(f"{deg}\n", 'utf-8'))

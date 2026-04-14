@@ -1,15 +1,19 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "eecs388_lib.h"
 
 #define ONE_HUND        (100)
+#define BUF_SIZE        (80)
+#define SERVO_PULSE_MAX (2400)    /* 2400 us */
+#define SERVO_PULSE_MIN (544)     /* 544 us */
+#define SERVO_PERIOD    (20000)   /* 20000 us (20ms) */
 
 //Array of function points for interrupts and exceptions
 void (*interrupt_handler[MAX_INTERRUPTS])();
 void (*exception_handler[MAX_INTERRUPTS])();
-
 volatile int intr_count = 0;
 
 void timer_handler() {
@@ -69,15 +73,31 @@ int read_from_pi(int devid) {
     // Task-3: 
     // You code goes here (Use Lab 09-option1 for reference)
     // After performing Task-2 at dnn.py code, modify this part to read angle values from Raspberry Pi.
-    uint16_t angle = ser_read(devid);
-    printf("%d", angle);
-    return angle;
+    char string_array[BUF_SIZE];
+
+    if (ser_isready(devid)) {
+        int bytes_read = ser_readline(devid, BUF_SIZE, string_array);
+        if (bytes_read > 0) {
+            int angle = atoi(string_array);     // ASCII to Int
+            return angle;
+        }
+    }
+
+    return 0;
 }
 
 void steering(int gpio, int pos) {
     // Task-4: 
     // Your code goes here (Use Lab 05 for reference)
     // Check the project document to understand the task
+    uint16_t pulse_width = 544 + ((1856 * pos) / 180);       // Calculates the pulse width
+    gpio_write(gpio, ON);
+    delay_us(pulse_width);     // Duty cycle
+    
+    gpio_write(gpio, OFF);
+    uint16_t remainder_pwm = (SERVO_PERIOD - pulse_width);      // Remainder of PWM period
+    delay_ms(16);
+    delay_us(remainder_pwm - 16000);
 }
 
 
@@ -94,8 +114,7 @@ int main() {
     enable_timer_interrupt();         // enable timer interrupt
     enable_interrupt();         // enable global interrupt
     set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
-
-    int prev_intr_count = intr_count;           // Previous LED interrupt count
+    int prev_intr_count = intr_count;           // Previous interrupt count
     int val = 0;        // On/Off value for braking LED
 
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
@@ -112,6 +131,7 @@ int main() {
 
     while (1) {
         disable_interrupt();
+        uint32_t currentTime = millis();
         
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
         
@@ -140,13 +160,10 @@ int main() {
             }
         }
         
-        /*
-        printf("Beginning to read angle");
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
         printf("\nangle=%d", angle);
-        printf("Done reading angle");
 
-
+        /*
         int gpio = PIN_19; 
         for (int i = 0; i < 10; i++){
             // Here, we set the angle to 180 if the prediction from the DNN is a positive angle
@@ -167,6 +184,7 @@ int main() {
             // steering(gpio, angle);
         }
         */
+
        enable_interrupt();
     }
     return 0;
