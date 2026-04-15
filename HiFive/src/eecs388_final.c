@@ -12,18 +12,8 @@
 #define SERVO_PULSE_MIN (544)     /* 544 us */
 #define SERVO_PERIOD    (20000)   /* 20000 us (20ms) */
 
-//Array of function points for interrupts and exceptions
-void (*interrupt_handler[MAX_INTERRUPTS])();
-void (*exception_handler[MAX_INTERRUPTS])();
-volatile int intr_count = 0;
-
 int val = 0;        // On/Off value for braking LED
-int last_led_state = 0;
-
-void timer_handler() {
-    intr_count++;       // Increment the interrupt counter variable
-    set_cycles(get_cycles() + 3277);       // Set the mtimecmpr register to correct value to generate an interrupt after 100ms (3277 cycles in 100 ms)
-}
+int last_led_state = 0;     // Stores the last led state, used if LiDAR transmission is incorrect
 
 int auto_brake(int devid) {
     // Task1 & 2: 
@@ -35,7 +25,7 @@ int auto_brake(int devid) {
     while (1) {     // Runs while the first two bytes are not 'Y'
         uint8_t b = ser_read(devid);        // Gets first byte
         if (b == 'Y') {     // Checks if first byte is 'Y'
-            if (ser_read(devid) == 'Y') {       // If second byte is also 'Y', the loop breaks and the distance is calculated
+            if (ser_read(devid) == 'Y') {       // If second byte is also 'Y', the loop breaks and the function is continued
                 break;
             }
         }
@@ -52,13 +42,12 @@ int auto_brake(int devid) {
     // Confirm the checksum
     uint8_t checksum = (0x59 + 0x59 + dist_L + dist_H + stren_L + stren_H + rsvd + quality);        // Calculates checksum
     checksum = checksum & 0xFF;     // Gets the last 8 bits of the checksum
-    if (checksum != received_chk_sum) {     // If calculated checksum equals the received checksum, the transmission was correct
-        return last_led_state;
+    if (checksum != received_chk_sum) {     // If calculated checksum does not equal the received checksum, the transmission was incorrect
+        return last_led_state;      // Returns the last led state to prevent LED from stopping
     }
 
     dist = (dist_H << 8) | dist_L;      // Calculates the distance
-    // Display distance
-    printf("Distance: %d cm\n", dist);
+    printf("Distance: %d cm\n", dist);          // Display distance
 
     if (dist > 200) {       // Safe distance, the Green LED turns on
         led_state = 1;
@@ -76,24 +65,24 @@ int auto_brake(int devid) {
         led_state = 4;
     }
 
-    return led_state;
+    return led_state;       // Returns led_state to main where the LEDs are controlled
 }
 
 int read_from_pi(int devid) {
     // Task-3: 
     // You code goes here (Use Lab 09-option1 for reference)
     // After performing Task-2 at dnn.py code, modify this part to read angle values from Raspberry Pi.
-    char string_array[BUF_SIZE];
+    char string_array[BUF_SIZE];        // Creates string_array to store read from the Pi
 
-    if (ser_isready(devid)) {
-        int bytes_read = ser_readline(devid, BUF_SIZE, string_array);
-        if (bytes_read > 0) {
+    if (ser_isready(devid)) {       // Checks if the Pi is ready to send
+        int bytes_read = ser_readline(devid, BUF_SIZE, string_array);       // Stores the result of ser_readline in bytes_read
+        if (bytes_read > 0) {       // If bytes_read > 0, an angle was received 
             int angle;
-            sscanf(string_array, "%d", &angle);     // ASCII to Int
-            return angle;
+            sscanf(string_array, "%d", &angle);     // Extracts the angle from string_array
+            return angle;       // Returns the angle to main
         }
     }
-    return 0;
+    return 0;       // Returns 0 if the Pi is not ready to send
 }
 
 void steering(int gpio, int pos) {
@@ -102,44 +91,12 @@ void steering(int gpio, int pos) {
     // Check the project document to understand the task
 
     uint16_t pulse_width = 544 + ((1856 * pos) / 180);       // Calculates the pulse width
+
     gpio_write(gpio, ON);
     delay_usec(pulse_width);     // Duty cycle
     
     gpio_write(gpio, OFF);
-    delay_usec((SERVO_PERIOD - pulse_width));
-    /*
-    static uint32_t last_time = 0;
-    static int pwm_state = 0;
-
-    uint32_t current_time = get_cycles();
-
-    uint16_t pulse_width = 544 + ((1856 * pos) / 180);
-    uint16_t remainder_pwm = (SERVO_PERIOD - pulse_width);
-
-    uint32_t pulse_cycles = (uint32_t)pulse_width * 32;
-    uint32_t remainder_cycles = (uint32_t)remainder_pwm * 32;
-
-    
-    if (pwm_state == 0) {
-        gpio_write(gpio, ON);
-        last_time = current_time;
-        pwm_state = 1;
-    }
-    else if (pwm_state == 1) {
-        if (current_time - last_time >= pulse_cycles) {
-            gpio_write(gpio, OFF);
-            last_time = current_time;
-            pwm_state = 2;
-        }
-    }
-    else if (pwm_state == 2) {
-        if (current_time - last_time >= remainder_cycles) {
-            gpio_write(gpio, ON);
-            last_time = current_time;
-            pwm_state = 1;
-        }
-    }
-    */
+    delay_usec((SERVO_PERIOD - pulse_width));       // Remainder of the PWM period
 }
 
 int main() {
@@ -148,16 +105,6 @@ int main() {
     ser_setup(1); // uart1
     int pi_to_hifive = 1; //The connection with Pi uses uart 1
     int lidar_to_hifive = 0; //the lidar uses uart 0
-    
-    // Interrupt setup
-    /*
-    interrupt_handler[MIE_MTIE_BIT] = timer_handler;        // install timer interrupt handler
-    register_trap_handler(handle_trap);         // write handle_trap address to mtvec
-    enable_timer_interrupt();         // enable timer interrupt
-    enable_interrupt();         // enable global interrupt
-    set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
-    int prev_intr_count = intr_count;           // Previous interrupt count
-    */
     
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
     printf("\nUsing UART %d for Lidar -> HiFive", lidar_to_hifive);
@@ -171,13 +118,10 @@ int main() {
     printf("Setup completed.\n");
     printf("Begin the main loop.\n");
 
-
     while (1) {
-        //disable_interrupt();
-        
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
-        if (led_state != 0) {
-            last_led_state = led_state;
+        if (led_state != 0) {       // Checks if a new state is read
+            last_led_state = led_state;     // Updates last_led_state
         }
 
         if (last_led_state == 1) {       // Safe distance, the Green LED turns on
@@ -197,21 +141,10 @@ int main() {
 
         else if (last_led_state == 4) {      // Too close, the Red LED flashes
             gpio_write(GREEN_LED, 0);
-            val ^= 1;
+            val ^= 1;       // Turns LED ON/OFF depending on last val
             gpio_write(RED_LED, val);
-            delay(100);
+            delay(100);     // Uses delay to flash LED
         }
-        /*
-        if (led_state == 4) {
-            if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
-                val ^= 1;       // Toggle for LED ON/OFF
-                gpio_write(RED_LED, val);       // Turns Red LED ON or OFF
-                prev_intr_count = intr_count;       // Save off the interrupt count
-            }
-        }
-        */
-
-        //enable_interrupt();
 
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
         if (angle != 0) {
