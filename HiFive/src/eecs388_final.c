@@ -12,8 +12,18 @@
 #define SERVO_PULSE_MIN (544)     /* 544 us */
 #define SERVO_PERIOD    (20000)   /* 20000 us (20ms) */
 
+//Array of function points for interrupts and exceptions
+void (*interrupt_handler[MAX_INTERRUPTS])();
+void (*exception_handler[MAX_INTERRUPTS])();
+volatile int intr_count = 0;
+
 int val = 0;        // On/Off value for braking LED
-int last_led_state = 0;     // Stores the last led state, used if LiDAR transmission is incorrect
+int last_led_state = 0;
+
+void timer_handler() {
+    intr_count++;       // Increment the interrupt counter variable
+    set_cycles(get_cycles() + 3277);       // Set the mtimecmpr register to correct value to generate an interrupt after 100ms (3277 cycles in 100 ms)
+}
 
 int auto_brake(int devid) {
     // Task1 & 2: 
@@ -51,18 +61,25 @@ int auto_brake(int devid) {
 
     if (dist > 200) {       // Safe distance, the Green LED turns on
         led_state = 1;
+        gpio_write(RED_LED, 0);
+        gpio_write(GREEN_LED, 1);
     }
 
     else if (200 >= dist && dist > 100) {      // Close distance, the Yellow LED turns on (Red and Green LEDs)
         led_state = 2;
+        gpio_write(RED_LED, 1);
+        gpio_write(GREEN_LED, 1);
     }
 
     else if (100 >= dist && dist > 60) {        // Very close distance, the Red LED turns on
         led_state = 3;
+        gpio_write(GREEN_LED, 0);
+        gpio_write(RED_LED, 1);
     }
 
     else if (60 >= dist) {      // Too close, the Red LED flashes
         led_state = 4;
+        gpio_write(GREEN_LED, 0);
     }
 
     return led_state;       // Returns led_state to main where the LEDs are controlled
@@ -96,7 +113,9 @@ void steering(int gpio, int pos) {
     delay_usec(pulse_width);     // Duty cycle
     
     gpio_write(gpio, OFF);
-    delay_usec((SERVO_PERIOD - pulse_width));       // Remainder of the PWM period
+    //delay_usec((SERVO_PERIOD - pulse_width));       // Remainder of the PWM period
+    delay(16);
+    delay_usec((SERVO_PERIOD - pulse_width) - 16000);
 }
 
 int main() {
@@ -105,6 +124,15 @@ int main() {
     ser_setup(1); // uart1
     int pi_to_hifive = 1; //The connection with Pi uses uart 1
     int lidar_to_hifive = 0; //the lidar uses uart 0
+
+    // Interrupt setup
+    interrupt_handler[MIE_MTIE_BIT] = timer_handler;        // install timer interrupt handler
+    register_trap_handler(handle_trap);         // write handle_trap address to mtvec
+    enable_timer_interrupt();         // enable timer interrupt
+    enable_interrupt();         // enable global interrupt
+    set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
+    int prev_intr_count = intr_count;           // Previous interrupt count
+    
     
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
     printf("\nUsing UART %d for Lidar -> HiFive", lidar_to_hifive);
@@ -119,40 +147,28 @@ int main() {
     printf("Begin the main loop.\n");
 
     while (1) {
+        disable_interrupt();
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
-        if (led_state != 0) {       // Checks if a new state is read
+        if (led_state) {       // Checks if a new state is read
             last_led_state = led_state;     // Updates last_led_state
         }
 
-        if (last_led_state == 1) {       // Safe distance, the Green LED turns on
-            gpio_write(RED_LED, 0);
-            gpio_write(GREEN_LED, 1);
+        if (led_state == 4) {
+            if (prev_intr_count != intr_count) {        // Checks for new braking LED interrupt
+                val ^= 1;       // Toggle for LED ON/OFF
+                gpio_write(RED_LED, val);       // Turns Red LED ON or OFF
+                prev_intr_count = intr_count;       // Save off the interrupt count
+            }
         }
-
-        else if (last_led_state == 2) {      // Close distance, the Yellow LED turns on (Red and Green LEDs)
-            gpio_write(RED_LED, 1);
-            gpio_write(GREEN_LED, 1);
-        }
-
-        else if (last_led_state == 3) {        // Very close distance, the Red LED turns on
-            gpio_write(GREEN_LED, 0);
-            gpio_write(RED_LED, 1);
-        }
-
-        else if (last_led_state == 4) {      // Too close, the Red LED flashes
-            gpio_write(GREEN_LED, 0);
-            val ^= 1;       // Turns LED ON/OFF depending on last val
-            gpio_write(RED_LED, val);
-            delay(100);     // Uses delay to flash LED
-        }
-
+        enable_interrupt();
+        
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
         if (angle != 0) {
             printf("angle=%d\n", angle);
         }
            
         int gpio = PIN_19;
-        for (int i = 0; i < 1; i++){
+        for (int i = 0; i < 10; i++){
             // Here, we set the angle to 180 if the prediction from the DNN is a positive angle
             // and 0 if the prediction is a negative angle.
             // This is so that it is easier to see the movement of the servo.
