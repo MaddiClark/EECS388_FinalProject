@@ -14,7 +14,7 @@ import math
 import numpy as np
 import serial
 
-ser1 = serial.Serial("/dev/ttyAMA2", 115200)
+ser = serial.Serial("/dev/ttyAMA2", 115200)
 
 # Radian <-> Degree conversion functions
 def deg2rad(deg):

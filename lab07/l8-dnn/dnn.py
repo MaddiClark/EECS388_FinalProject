@@ -10,6 +10,8 @@ import numpy as np
 import collections
 import serial
 
+ser = serial.Serial("/dev/ttyAMA2", 115200)     # Instantiate serial connection
+
 # Set environment variables for TensorFlow threading
 def set_tf_config(ncpu):
     os.environ["OMP_NUM_THREADS"] = str(ncpu)
@@ -132,8 +134,7 @@ while curFrame < NFRAMES:
         # Total time includes capture, preprocessing, and a portion of prediction
         tot_time = cam_time + prep_time + pred_time
         
-        ser = serial.Serial("/dev/ttyAMA2", 115200)
-        ser.write(bytes(f"{deg}\n", 'utf-8'))
+        ser.write(bytes(f"{deg}\n", 'utf-8'))       # Write to the serial connection
 
         print(f'pred: {deg:0.2f} deg. took: {tot_time:0.2f} ms | cam={cam_time:0.2f} prep={prep_time:0.2f} pred={pred_time:0.2f}')
         
