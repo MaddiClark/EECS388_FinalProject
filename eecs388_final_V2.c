@@ -111,11 +111,42 @@ int read_from_pi(int devid) {
     return 0;       // Returns 0 if the Pi is not ready to send
 }
 
+static uint32_t angle_to_us(int angle) {
+    if (angle < 0) angle = 0;
+    if (angle > 180) angle = 180;
+
+    return (SERVO_MIN_US + (angle * (SERVO_MAX_US - SERVO_MIN_US)) / 180);
+}
+
+void pwm_init_servo() {
+    // Route PWM0_1 to GPIO 19
+    gpio_mode(PIN_19, PWM);
+
+    // Reset counter
+    PWM_COUNT = 0;
+
+    // Set PWM clock to 1 MHz (1 tick = 1 us)
+    // Bit 0 = enable, Bit 3 = scale (divide by 1)
+    //PWM_CFG = (1 << 0);
+    PWM_CFG = (3 << 0) | (1 << 9) | (1 << 12);
+
+    // Set period to 20 ms
+    PWM_CMP0 = SERVO_PERIOD_US;
+
+    // Start with neutral pulse
+    PWM_CMP1 = 1500;
+}
+
+void servo_set_angle(int angle) {
+    PWM_CMP1 = angle_to_us(angle);
+}
+
 void steering(int gpio, int pos) {
     // Task-4: 
     // Your code goes here (Use Lab 05 for reference)
     // Check the project document to understand the task
-
+    servo_set_angle(pos);
+    /*
     uint16_t pulse_width = 544 + ((1856 * pos) / 180);       // Calculates the pulse width
 
     gpio_write(gpio, ON);
@@ -123,6 +154,7 @@ void steering(int gpio, int pos) {
     
     gpio_write(gpio, OFF);
     delay_usec((SERVO_PERIOD - pulse_width));       // Remainder of the PWM period
+    */
 }
 
 int main() {
@@ -140,11 +172,13 @@ int main() {
     set_cycles(get_cycles() + 40000);           // cause timer interrupt for some time in future 
     int prev_intr_count = intr_count;           // Previous interrupt count
     
+    pwm_init_servo();       // PWM setup
+
     printf("\nUsing UART %d for Pi -> HiFive", pi_to_hifive);
     printf("\nUsing UART %d for Lidar -> HiFive", lidar_to_hifive);
     
     //Initializing PINs
-    gpio_mode(PIN_19, OUTPUT);
+    //gpio_mode(PIN_19, OUTPUT);
     gpio_mode(RED_LED, OUTPUT);
     gpio_mode(BLUE_LED, OUTPUT);
     gpio_mode(GREEN_LED, OUTPUT);
@@ -153,6 +187,7 @@ int main() {
     printf("Begin the main loop.\n");
 
     while (1) {
+        /*
         disable_interrupt();
         int led_state = auto_brake(lidar_to_hifive);        // Measuring distance using lidar and braking
         if (led_state == 4) {
@@ -163,7 +198,7 @@ int main() {
             }
         }
         enable_interrupt();
-        
+        */
         int angle = read_from_pi(pi_to_hifive);     // Getting turn direction from pi
         if (angle != 0) {
             printf("angle=%d\n", angle);

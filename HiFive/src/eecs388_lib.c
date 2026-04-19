@@ -18,10 +18,29 @@ void gpio_mode(int gpio, int mode)
       val |= (1<<gpio);
       *(volatile uint32_t *) (GPIO_CTRL_ADDR + GPIO_OUTPUT_XOR) = val;
     }
-  } else if (mode == INPUT) {
+  } 
+  
+  else if (mode == INPUT) {
     val = *(volatile uint32_t *) (GPIO_CTRL_ADDR + GPIO_INPUT_EN);
     val |= (1<<gpio);
     *(volatile uint32_t *) (GPIO_CTRL_ADDR + GPIO_INPUT_EN) = val;
+  } 
+  
+  else if (mode == PWM) {
+    // Disable normal GPIO output
+    val = *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_OUTPUT_EN);
+    val &= ~(1 << gpio);
+    *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_OUTPUT_EN) = val;
+    
+    // Select IOF1 (PWM)
+    val = *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IOF_SEL);
+    val |= (1 << gpio);    // 1 = IOF1
+    *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IOF_SEL) = val;
+    
+    // Enable IOF
+    val = *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IOF_EN);
+    val |= (1 << gpio);
+    *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IOF_EN) = val;
   }
   return;
 }
@@ -71,8 +90,8 @@ void handle_trap()
 {  
     unsigned long mcause = read_csr(mcause);
     if (mcause & MCAUSE_INT) {
-        printf("interrupt. cause=%d, count=%d\n", 
-            (int)(mcause & MCAUSE_CAUSE), (int)intr_count++);
+        //printf("interrupt. cause=%d, count=%d\n", 
+            //(int)(mcause & MCAUSE_CAUSE), (int)intr_count++);
         // mask interrupt bit and branch to handler
         interrupt_handler[mcause & MCAUSE_CAUSE] ();
     } else {
@@ -127,7 +146,7 @@ void ser_setup(int devid)
   *(volatile uint32_t *)(UART_ADDR(devid) + UART_DIV) = 139; /* baudrate ~115200 bps */
 
   /* enable UART1 IOF */
-  *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IO_FUNC_EN) |= 0x840000;  
+  *(volatile uint32_t *)(GPIO_CTRL_ADDR + GPIO_IOF_EN) |= 0x840000;  
 }
 
 int  ser_isready(int devid)

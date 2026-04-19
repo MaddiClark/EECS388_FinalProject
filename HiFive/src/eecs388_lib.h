@@ -23,6 +23,8 @@
 #define MAX_INTERRUPTS      16
 #define MAX_EXT_INTERRUPTS  52
 
+#define PWM                 2
+
 /******************************************************************************
  *   memory map
  *******************************************************************************/
@@ -31,8 +33,10 @@
 #define GPIO_INPUT_EN       0x04        // input enable
 #define GPIO_OUTPUT_EN      0x08        // output enable
 #define GPIO_OUTPUT_VAL     0x0C        // output_val 
-#define GPIO_IO_FUNC_EN     0x38        // gpio iof enable.
+#define GPIO_IOF_EN     0x38        // gpio iof enable.
 #define GPIO_OUTPUT_XOR     0x40        // output XOR (invert)
+
+#define GPIO_IOF_SEL        0x3C
 
 #define CLINT_CTRL_ADDR     0x02000000  // CLINT controller base address
 #define CLINT_MTIME         0xbff8      // timer register
